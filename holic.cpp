@@ -300,7 +300,7 @@ void* holic(){
         }
 
         sem_wait(sem_customers);
-        
+
         log_msg(LOG_INFO, "Holic probuzen, jde strihat..");
         global_data->customer_count -= 1;
 
