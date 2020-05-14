@@ -37,7 +37,6 @@ extern int debug;
 #define CHAIR_COUNT 2
 
 
-
 //SHM folder
 #define SHM_NAME "/shm_holicstvi"
 #define MQ_NAME "/mq_holic"
@@ -113,17 +112,35 @@ extern char BBUF[BUFSIZ];
 
 
 // FUNCTIONS
+
+// Print a message
 void log_msg(int log_level, const char *form, ... );
+
+// help
 void help(int num, char **arg);
 
-int readline(fdStruct* fd, char* buf);
+// Reads one line from a FD
+int readline_simple(int fd, char* buf);
+
+// Reads one line from a FD, stores the rest in a buffer.
+int readline(fdStruct& fd, char* buf);
+
+// Parse the message according to the protocol
 bool parse(msg* m, char* l);
+
+// Compare and validate the protocol message
 bool cmpvalid(msg* m, char* l, char v_typ, int v_code);
+
+// Wait for the right message to be received
 void wait_for_message(fdStruct& fd, char* l, msg* m, char v_typ, int v_code);
-//void send_response(int fd, char type, int code, char const* text);
 
-void* holic();
+// Send parsed response
+void send_response(int fd, char type, int code, char const* text);
+
+// Barber function
+void* holic(void*arg = NULL);
+
+// Function to serve customers
 void* handleCustomer(void*);
-
 
 #endif

@@ -127,13 +127,10 @@ int main( int argn, char **arg )
     //global_data->customer_count = -1;
 
 
-    if(fork() == 0){
-        global_data->child_count++;
-        log_msg(LOG_INFO, "Holic v provozu s PID: %d", getpid());
-        holic();
-    }
-
-
+    pthread_t t_holic;
+    pthread_create(&t_holic, NULL, holic, NULL);
+    
+    
      // go!
     while ( 1 )
     {
@@ -179,28 +176,20 @@ int main( int argn, char **arg )
 
 
                 //Oblsuha klienta
-
                 fdStruct fd_sock_client;
                 fd_sock_client.fd = sock_client;
                 bzero(fd_sock_client.BUF,sizeof(fd_sock_client.BUF));
 
-                if(fork() == 0) 
-                {
-                    close(sock_listen);
-                    handleCustomer(&fd_sock_client);
-		        } else {
-                    close(sock_client);
-                }
+                pthread_t t_client;
+                pthread_create(&t_client, NULL, handleCustomer, (void*)&fd_sock_client);
+                
+                
                 break;
             }
         } // while wait for client
 
-        
-    } 
-    for (int i = 0; i<global_data->child_count;i++){
-        wait(NULL);
-    }
-    // while ( 1 )
+      
+    } // while ( 1 )
 	
     return 0;
 }

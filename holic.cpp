@@ -12,7 +12,7 @@ fdStruct fd_stdin;
 fdStruct fd_pipe;
 fdStruct fd_sock_client;
 
-char BBUF[BUFSIZ];
+
 
 
 void log_msg( int log_level, const char *form, ... )
@@ -67,134 +67,44 @@ void help( int num, char **arg )
 }
 
 
-bool read_line(int fd, char* line)
-{
-    int i = 0;
-    char buf[2];
-    while(1)
-    {
-        int l = read(fd, buf, 1);
-        
-        if(l <= 0)
-        {
-            line = NULL;
-            return false;
+int readline_simple(int fd, char* buf){
+
+    int k = 0;
+    int ret;
+    while(true){
+        char txt;
+        ret = read(fd,&txt,1);
+        if (ret<=0) return ret;
+
+        if(txt == '\n') {
+            buf[k++] = '\n';
+            buf[k++] = '\0';
+            return k;
         }
-        if(buf[0] == '\n')
-        {
-            line[i] = '\0';
-            return true;
+        else if ( txt == '\0'){
+            buf[k++] = '\0';
+            return k;
         }
-        
-        line[i] = buf[0];
-        i++;
+        else{
+            buf[k++] = txt;
+        }
     }
 }
 
 
-int readline(fdStruct* fd, char* buf){
 
-    char* resultBuffer = fd->BUF;
+int readline(fdStruct& fd, char* buf){
+
     int ret, mv;
     char temp[256];
-    
     bzero(temp, sizeof(temp));
     char* t = NULL;
-
-
-    while(true){
-
-        t = strchr(resultBuffer,'\n');
-        if(t != NULL){
-            mv = t-resultBuffer+1;
-            strncpy(temp,resultBuffer, mv);
-            resultBuffer = resultBuffer + mv;
-
-            strcpy(buf,temp);
-            bzero(temp, sizeof(temp));
-            ret = read(fd->fd,&temp,sizeof(temp));
-            temp[strlen(temp)]='\0';    
-            strcat(resultBuffer,temp);
-            
-            return mv;
-        }
-        ret = read(fd->fd,&temp,sizeof(temp));
-        temp[ret]='\0';
-        t = strchr(temp,'\n');
-        mv = t-temp+1;
-        strncpy(buf,temp,mv);
-        strcat(resultBuffer,temp+mv);
-
-        if(t == NULL){
-            continue;
-        }
-        return ret;
-    }
-}  
-
-int readline2(int fd, char* buf){
-
-     static char* resultBuffer = BBUF;
-    int ret, mv;
-    char temp[256];
-    
-    bzero(temp, sizeof(temp));
-    char* t = NULL;
-
-
-    while(true){
-        bzero(temp, sizeof(temp));
-        t = strchr(resultBuffer,'\n');
-        if(t != NULL){
-            mv = t-resultBuffer+1;
-            strncpy(temp,resultBuffer, mv);
-            resultBuffer = resultBuffer + mv;
-            //log_msg(LOG_INFO, "%s", resultBuffer);
-            //log_msg(LOG_INFO, "%s", temp);
-            
-            strcpy(buf,temp);
-            //log_msg(LOG_INFO, "%s", buf);
-            bzero(temp, sizeof(temp));
-            ret = read(fd,&temp,sizeof(temp));
-            
-            temp[ret]='\0';    
-            strcat(resultBuffer,temp);
-            
-            return mv;
-        }
-        ret = read(fd,&temp,sizeof(temp));
-        
-        temp[ret]='\0';
-        t = strchr(temp,'\n');
-        mv = t-temp+1;
-        strncpy(buf,temp,mv);
-        buf[mv] = '\0';
-        strcat(resultBuffer,temp+mv);
-
-        if(t == NULL){
-            continue;
-        }
-        return mv;
-    }
-}   
-
-int readline4(fdStruct& fd, char* buf){
-
-    
-    int ret, mv;
-    char temp[256];
-    
-    bzero(temp, sizeof(temp));
-    char* t = NULL;
-
 
     while(1){
         bzero(temp, sizeof(temp));
         bzero(buf,sizeof(buf));
 
-
         ret = read(fd.fd, &temp, 256 - sizeof(strlen(fd.BUF)));
-        
         if (ret > 0 ){
             temp[ret] = '\0';
         }
@@ -215,11 +125,8 @@ int readline4(fdStruct& fd, char* buf){
             }
             strcpy(buf, fd.BUF);
             strcpy(fd.BUF,fd.BUF+strlen(buf));
-
             return strlen(buf);
         }
-
-
     }
 }  
 
@@ -242,10 +149,11 @@ bool cmpvalid(msg* m, char* l, char v_typ, int v_code){
 
 
 void wait_for_message(fdStruct& fd, char* l, msg* m, char v_typ, int v_code){
+    
     int ret = -1;
     while(1){
 
-        if ((ret = readline4(fd, l)) < 0){
+        if ((ret = readline(fd, l)) < 0){
             log_msg(LOG_INFO, "ZADNA PRICHOZI ZPRAVA");
             exit(-1);
         }
@@ -257,8 +165,7 @@ void wait_for_message(fdStruct& fd, char* l, msg* m, char v_typ, int v_code){
                 }
                 else{
                     log_msg(LOG_INFO, "[BAD or unexpected format] %s\n", l);
-                    bzero(l, sizeof(char)*256);
-                    
+                    bzero(l, sizeof(char)*256);  
                 }
         }
         else{
@@ -267,20 +174,20 @@ void wait_for_message(fdStruct& fd, char* l, msg* m, char v_typ, int v_code){
     }
 }
 
-void send_response(int fd, char type, int code, char const* text){
+void send_response(int fd, char v_typ, int v_code, const char* v_text){
 
     char buffer[256];
-    sprintf(buffer, "%c%d:%s\n", type, code, text);
+    sprintf(buffer, "%c%d:%s\n", v_typ, v_code, v_text);
     write(fd, buffer, strlen(buffer));
 }
 
 
 
+void* holic(void* arg){
 
-
-void* holic(){
-
-    close(comPipe[1]);
+    if(global_data->child_count>0){
+        close(comPipe[1]);
+    }
     log_msg(LOG_INFO, "Holic prichazi do prace..");
 
     msg m;
@@ -293,7 +200,6 @@ void* holic(){
 
     while(1){
 
-
         sem_getvalue(sem_customers, &val_check);
         if (val_check==0){
             log_msg(LOG_INFO,"Holic usina..");
@@ -304,18 +210,19 @@ void* holic(){
         log_msg(LOG_INFO, "Holic probuzen, jde strihat..");
         global_data->customer_count -= 1;
 
+        //Pojdte se strihat...
         sem_post(sem_barber);
-        //log_msg(LOG_INFO, "after sem_barber");
+
         
         bzero(l,sizeof(l));
         bzero(m.text, sizeof(m.text));
-
+        log_msg(LOG_INFO, "barber before read %d", fd_pipe.fd);
+        
         int tmp = read(comPipe[0], l, sizeof(l));
         l[tmp] = '\0';
         //wait_for_message(fd_pipe,l,&m,'A', AI_Zakazka);
-        log_msg(LOG_INFO, "After read");
 
-        
+
         sscanf(l, "Chci strihat po dobu %d", &cut_time);
         global_data->chairs[global_data->last_chair] = 0;
         log_msg(LOG_INFO, "Holic striha zakaznika z zidle %d, potrva to %d vterin.",global_data->last_chair, cut_time);
@@ -326,11 +233,14 @@ void* holic(){
 
         bzero(l,sizeof(l));
         bzero(m.text, sizeof(m.text));
+        // Nashledanou
         wait_for_message(fd_pipe,l,&m,'A', AI_Nashledanou);
         log_msg(LOG_INFO, "Nashledanou, prijdte zas.");
 
     }
-    close(comPipe[0]);
+    if (global_data->child_count>0){
+        close(comPipe[0]);
+    }
 }
 
 
@@ -338,54 +248,61 @@ void* holic(){
 
 void* handleCustomer(void* var){
 
-    close(comPipe[0]);
+    if (global_data->child_count>0){
+        close(comPipe[0]);
+    }
+
     fdStruct sock_client = *(fdStruct*) var;
-    
+    log_msg(LOG_INFO, "%d", sock_client.fd);
     msg m;
     char l[256];
     bzero(m.text, sizeof(m.text));
     bzero(l, sizeof(l));
 
-        //log_msg(LOG_INFO, "pred vstupni zpravou");
 
-    //wait_for_message(&sock_client, l, &m, 'C', CI_Vstup );
+    // Vstup zakaznika
     wait_for_message( sock_client, l, &m, 'C', CI_Vstup);
 
-        //log_msg(LOG_INFO, "po vstupni zprave");
+        
     if (global_data->customer_count < CHAIR_COUNT){
 
         global_data->customer_count += 1;
-        int i;
-        for(i = 0; i<CHAIR_COUNT;i++){
+        int i = 0;
+        for(i; i<CHAIR_COUNT; i++){
 
             if(global_data->chairs[i] == 0){
-                global_data->chairs[i] == 1;
+                global_data->chairs[i] = 1;
                 
                 break;
             }
         }
 
-
+        // Volne misto
         sprintf(l, AS_MistoX, i);
         send_response(sock_client.fd, 'A', AI_MistoX, l);
-        
+        log_msg(LOG_INFO, "%s", l );
         sem_post(sem_customers);
         sem_wait(sem_barber);
         global_data->last_chair = i;
 
+        // Pojdte se strihat
         send_response(sock_client.fd, 'C', CI_Strihat, CS_Strihat);
+        
+        
+        // Dekka strihani
         wait_for_message(sock_client, l, &m, 'A', AI_Zakazka);
-        //log_msg(LOG_INFO, "received time, sending to barber");
         parse(&m, l);
         write(comPipe[1], &m.text, strlen(m.text));
-        //log_msg(LOG_INFO, "After write");
+      
 
         bzero(m.text, sizeof(m.text));
         bzero(l, sizeof(l));
 
         sem_wait(sem_cutting);
+        // Dostrihano, muzete odejit.
         send_response(sock_client.fd, 'C', CI_Hotovo, CS_Hotovo);
  
+        // Nashledanou
         wait_for_message(sock_client, l, &m, 'A', 72);
         send_response(comPipe[1],'A',AI_Nashledanou,AS_Nashledanou);
 
@@ -397,5 +314,7 @@ void* handleCustomer(void* var){
         close(sock_client.fd);
     }
 
-    close(comPipe[1]);
+    if (global_data->child_count>0){
+        close(comPipe[1]);
+    }
 }
