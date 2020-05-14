@@ -253,7 +253,7 @@ void* handleCustomer(void* var){
     }
 
     fdStruct sock_client = *(fdStruct*) var;
-    log_msg(LOG_INFO, "%d", sock_client.fd);
+    
     msg m;
     char l[256];
     bzero(m.text, sizeof(m.text));
